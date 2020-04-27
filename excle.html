@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>excel格式转换</title>
+    <script type="text/javascript" src="./node_modules/js-xlsx/dist/xlsx.core.min.js"></script>
+    <script src="./node_modules/requirejs/require.js"></script>
+</head>
+
+<body>
+
+    <body>
+        <input type="file" id="myFile" onchange="importExcel(this)">
+        <!-- <button onclick="selectFile()">上传</button> -->
+        <button onclick="DownloadTmp()">导出</button>
+        <div id="output"></div>
+        <script>
+            var fileInput = document.getElementById("myFile");
+
+
+            // 选择上传文件 导入
+            function selectFile(event) {
+                fileInput.click();
+            }
+
+            // FileReader共有4种读取方法：
+            // 1.readAsArrayBuffer(file)：将文件读取为ArrayBuffer。
+            // 2.readAsBinaryString(file)：将文件读取为二进制字符串
+            // 3.readAsDataURL(file)：将文件读取为Data URL
+            // 4.readAsText(file, [encoding])：将文件读取为文本，encoding缺省值为'UTF-8'
+            // var obj = {a:1,b:2,c:3}
+            // for(var s in obj){
+            //     alert(obj[s]);
+            // }
+            
+            var wb;//读取完成的数据
+            var aa = [];
+            var dd = [];
+            var ff = [{
+                '户号': "", 
+                '户名': "", 
+                '水表号': "", 
+                '上期读数': "", 
+                '本期读数': "",
+                '抄表水量': "", 
+                '减免水量': "", 
+                '增补水量': "", 
+                '换表水量': "", 
+                '抄表日期': ""
+            }];
+            var text = [];
+            var rABS = false; //是否将文件读取为二进制字符串
+
+            function importExcel(obj) {//导入
+                if (!obj.files) {
+                    return;
+                }
+                const IMPORTFILE_MAXSIZE = 1 * 2048;//这里可以自定义控制导入文件大小
+                var suffix = obj.files[0].name.split(".")[1];
+                if (suffix != 'xls' && suffix != 'xlsx' && suffix != 'XLS') {
+                    alert('导入的文件格式不正确!');
+                    return
+                }
+                if (obj.files[0].size / 1024 > IMPORTFILE_MAXSIZE) {
+                    alert('导入的表格文件不能大于2M');
+                    return
+                }
+                var f = obj.files[0];
+                var reader = new FileReader();
+                reader.onload = function (e) {
+                    var data = e.target.result;
+                    if (rABS) {
+                        wb = XLSX.read(btoa(fixdata(data)), {//手动转化
+                            type: 'base64'
+                        });
+                    } else {
+                        wb = XLSX.read(data, {
+                            type: 'binary'
+                        });
+                    }
+                    //wb.SheetNames[0]是获取Sheets中第一个Sheet的名字
+                    //wb.Sheets[Sheet名]获取第一个Sheet的数据
+                    aa = JSON.stringify(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]));
+                    // console.log(aa);
+                    // console.log(ff[0].用户编号)
+                    bb = JSON.parse(aa)
+                    console.log(bb[0])
+                    console.log(bb.length)
+                    console.log(typeof(bb[0]))
+                    //  这里的aa就是我想要的json数组最后一次抄表时间: "2020/4/21 1:55:36"
+// 用户名称: "桂海泉"
+// 用户编号: "260054"
+// 表底数(M3): "9.70"
+// 设备编号: 
+                    for(var i=0; i<bb.length; i++) {
+                        if(i<bb.length-2) {
+                            dd.push({
+                                '户号' : '31000000'+bb[i]['用户编号'],
+                                '户名' : bb[i]['用户名称'],
+                                '水表号' : bb[i]['设备编号'],
+                                '上期读数' : '0',
+                                '本期读数' : Math.round(bb[i]['表底数(M3)']),
+                                '抄表水量' : '0',
+                                '减免水量' : '0',
+                                '增补水量' : '0',
+                                '换表水量' : '0',
+                                '抄表日期' : bb[i]['最后一次抄表时间'],
+                            })
+                        }else {
+                            dd.push({
+                                '户号' : '',
+                                '户名' : bb[i]['用户名称'],
+                                '水表号' : '', 
+                                '上期读数' : '',
+                                '本期读数' : '',
+                                '抄表水量' : '',
+                                '减免水量' : '',
+                                '增补水量' : '',
+                                '换表水量' : '',
+                                '抄表日期' : bb[i]['最后一次抄表时间'],
+                            })
+                        }
+                    }
+                    console.log(ff[0])
+                    console.log(dd)
+                    var u = eval('(' + aa + ')');
+                    //  将json数组显示到div的innerHTML中
+                    document.getElementById("output").innerHTML = JSON.stringify(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]));
+
+                    //获取表格中为address的那列存入text中
+                    for (var i = 0; i < u.length; i++) {
+                        text.push(u[i].address);
+                    }
+                };
+                if (rABS) {
+                    reader.readAsArrayBuffer(f);
+                } else {
+                    reader.readAsBinaryString(f);
+                    // reader.readAsText(f, "UTF-8")
+                }
+            }
+
+            // 导出
+            function DownloadTmp() {
+                // 要导出的json数据
+                
+                var jsonData = JSON.parse(JSON.stringify(dd));
+                // 列标题，逗号隔开，每一个逗号就是隔开一个单元格
+                let str = `户号, 户名, 水表号, 上期读数, 本期读数, 抄表水量, 减免水量, 增补水量, 换表水量, 抄表日期\n`
+                // 增加\t为了不让表格显示科学计数法或者其他格式
+                for (let i = 0; i < jsonData.length; i++) {
+                    for (let item in jsonData[i]) {
+                        str += `${jsonData[i][item] + '\t'},`
+                    }
+                    str += '\n'
+                }
+                // encodeURIComponent解决中文乱码
+                let uri = 'data:text/csv;charset=utf-8,\ufeff' + encodeURIComponent(str)
+                // 通过创建a标签实现
+                var link = document.createElement('a')
+                link.href = uri
+                // 对下载的文件命名
+                var now   = new Date();
+                var date = now.getDate(); 
+                var monthn = now.getMonth();  //获取当前月份(0-11,0代表1月)
+                var yearn  = now.getFullYear(); //获取完整的年份(4位,1970-????)
+                var time = yearn +'-' + monthn + '-' + date
+                link.download = time +'抄表信息.xlsx'
+                document.body.appendChild(link)
+                link.click()
+                document.body.removeChild(link)
+            }
+        </script>
+    </body>
+</body>
+
+</html>
